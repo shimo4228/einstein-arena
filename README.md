@@ -1,11 +1,13 @@
-# einstein-arena — an honest #1 on the Prime Number Theorem problem
+# einstein-arena — an honest, server-verified record on the Prime Number Theorem problem
 
 A local-search lab for the "construction" math problems on [EinsteinArena](https://einsteinarena.com).
-Its headline result: a **verified, honest #1** on the *Prime Number Theorem* problem (id 7).
+Its headline result: a server-verified score of **0.9955806** on the *Prime Number Theorem* problem
+(id 7) that beats the prior published top (0.994901) — an honest **#1 at submission** (2026-06-21).
 
-> **Agent `Agent-Knowledge-Cycle` — honest S = 0.9955806** (RHS = 1.0, grid-exact), beating the prior
+> **Agent `Agent-Knowledge-Cycle` — honest S = 0.9955806** (RHS = 1.0, grid-checked), beating the prior
 > top 0.994901 by +0.00068. The server score equals the local score to all digits, and we hold the
-> *clean* bound g(x) ≤ 1 rather than the 1.0001 tolerance the prior top spent.
+> *clean* bound g(x) ≤ 1 rather than the 1.0001 tolerance the prior top spent. (A leaderboard rank is
+> time-relative; the durable, anchored claim is the verified score beating the published top.)
 
 ## The problem (one paragraph)
 
@@ -58,8 +60,10 @@ The verifier and problem detail are fetched from the public API at runtime (see
 
 ## Honesty & safety
 
-- **Honest by construction.** We certify g(x) ≤ 1.0 on the full integer grid [1, 10·maxK) — the exact
-  supremum, stricter than the server's Monte-Carlo sampling — and never spend the 1.0001 slack.
+- **Honest by construction.** We check g(x) ≤ 1.0 on the full integer grid [1, 10·maxK) to
+  floating-point tolerance (grid max ≈ 1 + 6e-10) — far inside the prior top's 1.0001 slack and stricter
+  than the server's Monte-Carlo sampling. The geometric tail is residue-bounded but not separately
+  certified; the server score still equals the local score to all digits.
 - **Approval-gated.** GET is free; every outward action (register / submit / thread) defaults to a
   dry-run and only fires with an explicit `approved=True` / `--i-have-approval`. API keys live outside
   the repo (`~/.config/einsteinarena/credentials.json`), never committed.
@@ -80,6 +84,28 @@ of agent environment* reached this result:
 - **Hub:** the author's profile [github.com/shimo4228](https://github.com/shimo4228) links the broader
   research program (Agent Knowledge Cycle, Contemplative Agent, Agent Attribution Practice, Authorship
   Strategy).
+
+## As an existence proof
+
+This result is also recorded as a worked instance of the **Existence Proof Format** from
+[existence-proof](https://github.com/shimo4228/existence-proof) — a document format for *"I held no
+credential in this domain, and a verifiable artifact exists anyway,"* where every claim terminates in a
+third-party-verifiable anchor (a resolving DOI, a live URL, a public repository).
+
+The author holds no degree or research background in mathematics, analytic number theory, or numerical
+optimization. The construction here was reached by an autonomous agent running under the author's
+approval-gated harness; the AI was the *path*, and the result is the author's to account for (the same
+operator-accountability framing as [Agent Attribution Practice](https://github.com/shimo4228/agent-attribution-practice)).
+The further the path carries the cognitive load, the sharper — not the weaker — the credential-absence
+point becomes. The anchored claim is deliberately narrow and checkable: a construction whose **server
+score equals its local score to all digits** (0.9955806), exceeding the prior published top (0.994901)
+by +0.00068 while holding the clean g(x) ≤ 1 bound — reproducible from this public repository against
+the platform's own verifier.
+
+It is filed as Existence Proof Format instance #1
+([instance-1.md](https://github.com/shimo4228/existence-proof/blob/main/docs/format/instance-1.md)),
+anchored to this repository and the [EinsteinArena](https://einsteinarena.com) platform. For the broader
+research program this sits beside, see the hub [shimo4228/shimo4228](https://github.com/shimo4228/shimo4228).
 
 ## Attribution
 
