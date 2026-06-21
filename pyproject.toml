@@ -9,6 +9,7 @@ dependencies = [
     "requests>=2.32",
     "cma>=4.4.4",
     "jax>=0.10.2",
+    "highspy>=1.14.0",
 ]
 
 # 追加の最適化ソルバ（cma / nlopt 等）は Phase 0 (/search-first) で

@@ -134,6 +134,122 @@ def _violations(g: np.ndarray, rhs: float) -> np.ndarray:
     return xs[np.argsort(-g[mask])]
 
 
+def _result_from_x(
+    xvec: np.ndarray,
+    kplus: list[int],
+    c: np.ndarray,
+    x_max: int,
+    rhs: float,
+    feas_tol: float,
+    n_rows: int,
+    it: int,
+) -> tuple[LPResult, np.ndarray]:
+    """Build the LPResult and the grid g(x) from a solver's f(k>=2) solution vector.
+
+    S = -c.x (objective is minimize c.f = -S); identical whichever backend produced x.
+    """
+    fplus = {k: float(v) for k, v in zip(kplus, xvec)}
+    f_full = dict(fplus)
+    f_full[1] = reconstruct_f1(fplus)
+    full_keys = np.fromiter(f_full.keys(), dtype=np.int64)
+    full_vals = np.fromiter(f_full.values(), dtype=np.float64)
+    g = grid_g(full_keys, full_vals, x_max)
+    grid_max = float(g.max()) if g.size else 0.0
+    S = -float(np.dot(c, xvec))
+    res = LPResult(f_full, S, grid_max, grid_max <= rhs + feas_tol, "optimal", n_rows, it)
+    return res, g
+
+
+def _cutting_plane_scipy(
+    kplus: list[int],
+    kplus_arr: np.ndarray,
+    c: np.ndarray,
+    M: int,
+    x_max: int,
+    rhs: float,
+    max_iters: int,
+    cuts_per_iter: int,
+    seed_rows: int,
+    feas_tol: float,
+) -> LPResult:
+    """Cold-resolve cutting plane via scipy.optimize.linprog (kept as a fallback / reference)."""
+    bounds = [(-VALUE_BOUND, VALUE_BOUND)] * len(kplus)
+    X = sorted(range(1, min(M, seed_rows) + 1))
+    last: LPResult | None = None
+    for it in range(1, max_iters + 1):
+        xs = np.asarray(X, dtype=np.int64)
+        a_ub = _constraint_rows(xs, kplus_arr)
+        sol = linprog(c, A_ub=a_ub, b_ub=np.full(len(X), rhs), bounds=bounds, method="highs")
+        if not sol.success:
+            return LPResult({1: 0.0}, 0.0, math.inf, False, f"linprog: {sol.message}", len(X), it)
+        last, g = _result_from_x(sol.x, kplus, c, x_max, rhs, feas_tol, len(X), it)
+        viol = _violations(g, rhs + feas_tol)
+        if viol.size == 0:
+            return last
+        X = sorted(set(X) | {int(x) for x in viol[:cuts_per_iter]})
+    assert last is not None
+    return LPResult(last.f, last.S, last.grid_max, False, "max_iters", last.n_rows, max_iters)
+
+
+def _cutting_plane_highs(
+    kplus: list[int],
+    kplus_arr: np.ndarray,
+    c: np.ndarray,
+    M: int,
+    x_max: int,
+    rhs: float,
+    max_iters: int,
+    cuts_per_iter: int,
+    seed_rows: int,
+    feas_tol: float,
+) -> LPResult:
+    """Warm-started cutting plane: one persistent HiGHS model, add only NEW rows each round.
+
+    addRows + run() resumes from the retained optimal basis (dual simplex, presolve off), so
+    only the freshly added cuts are re-optimized -- far cheaper than scipy's cold re-solve.
+    """
+    import highspy  # noqa: PLC0415 -- declared dep; lazy so the scipy path needs no HiGHS bindings
+
+    n = len(kplus)
+    inf = highspy.kHighsInf
+    h = highspy.Highs()
+    h.setOptionValue("output_flag", False)
+    h.setOptionValue("presolve", "off")
+    empty_i = np.empty(0, dtype=np.int32)
+    empty_v = np.empty(0, dtype=np.float64)
+    for j in range(n):  # one column per f(k>=2): cost log(k)/k, box [-10, 10]
+        h.addCol(float(c[j]), -VALUE_BOUND, VALUE_BOUND, 0, empty_i, empty_v)
+
+    def add_rows(xs: np.ndarray) -> None:
+        a = _constraint_rows(xs, kplus_arr)
+        m = a.shape[0]
+        starts = np.arange(m, dtype=np.int32) * n
+        indices = np.tile(np.arange(n, dtype=np.int32), m)
+        h.addRows(m, np.full(m, -inf), np.full(m, rhs), m * n, starts, indices, a.ravel())
+
+    added: set[int] = set()
+    seed = sorted(range(1, min(M, seed_rows) + 1))
+    add_rows(np.asarray(seed, dtype=np.int64))
+    added.update(seed)
+    last: LPResult | None = None
+    for it in range(1, max_iters + 1):
+        h.run()
+        if h.getModelStatus() != highspy.HighsModelStatus.kOptimal:
+            return LPResult(
+                {1: 0.0}, 0.0, math.inf, False, f"highs: {h.getModelStatus()}", len(added), it
+            )
+        x = np.asarray(h.getSolution().col_value, dtype=np.float64)
+        last, g = _result_from_x(x, kplus, c, x_max, rhs, feas_tol, len(added), it)
+        viol = _violations(g, rhs + feas_tol)
+        new_x = [int(v) for v in viol if int(v) not in added][:cuts_per_iter]
+        if not new_x:
+            return last
+        add_rows(np.asarray(sorted(new_x), dtype=np.int64))
+        added.update(new_x)
+    assert last is not None
+    return LPResult(last.f, last.S, last.grid_max, False, "max_iters", last.n_rows, max_iters)
+
+
 def solve_support(
     K: Iterable[int],
     *,
@@ -142,17 +258,18 @@ def solve_support(
     cuts_per_iter: int = 1_000_000,
     seed_rows: int = 1_000_000,
     feas_tol: float = 1e-9,
+    solver: str = "highs",
 ) -> LPResult:
-    """Maximize S on a fixed support via cutting-plane LP (HiGHS), honest bound `rhs`.
+    """Maximize S on a fixed support via cutting-plane LP, honest bound `rhs`.
 
-    Starts from the integer rows [1, min(max(K), seed_rows)], solves, finds the rows where
-    the continuous constraint is violated on the full grid [1, 10*max(K)), adds the most
-    violated as cuts, and re-solves until grid-feasible or `max_iters` is hit. The feasible
-    set always contains f=0 (S=0), so the LP is never infeasible/unbounded.
+    Seeds the integer rows [1, min(max(K), seed_rows)], solves, finds the rows where the
+    continuous constraint is violated on the full grid [1, 10*max(K)), adds them as cuts, and
+    re-solves until grid-feasible or `max_iters` is hit. f=0 (S=0) is always feasible, so the
+    LP is never infeasible/unbounded.
 
-    Defaults seed the full [1, max(K)] block (where the truncated-Mobius identity is tight) and
-    add ALL violated rows per round; on a profiled M=600 this cut iterations 14 -> 5 with an
-    identical optimum. The linprog solves themselves dominate runtime at large |K|.
+    solver="highs" (default) keeps one persistent warm-started HiGHS model (adds only new cuts
+    each round); solver="scipy" cold-resolves via scipy.optimize.linprog (reference/fallback).
+    Both delegate to HiGHS, so the optimum is identical; "highs" is markedly faster at large |K|.
     """
     keys = normalize_support(K)
     kplus = [k for k in keys if k != 1]
@@ -163,38 +280,5 @@ def solve_support(
     x_max = X_CAP_FACTOR * M
     kplus_arr = np.asarray(kplus, dtype=np.int64)
     c = objective_vector(kplus)
-    bounds = [(-VALUE_BOUND, VALUE_BOUND)] * len(kplus)
-
-    X = sorted(set(range(1, min(M, seed_rows) + 1)))
-    last: LPResult | None = None
-    for it in range(1, max_iters + 1):
-        xs = np.asarray(X, dtype=np.int64)
-        a_ub = _constraint_rows(xs, kplus_arr)
-        res = linprog(
-            c,
-            A_ub=a_ub,
-            b_ub=np.full(len(X), rhs, dtype=np.float64),
-            bounds=bounds,
-            method="highs",
-        )
-        if not res.success:
-            return LPResult({1: 0.0}, 0.0, math.inf, False, f"linprog: {res.message}", len(X), it)
-
-        fplus = {k: float(v) for k, v in zip(kplus, res.x)}
-        f_full = dict(fplus)
-        f_full[1] = reconstruct_f1(fplus)
-        full_keys = np.fromiter(f_full.keys(), dtype=np.int64)
-        full_vals = np.fromiter(f_full.values(), dtype=np.float64)
-        g = grid_g(full_keys, full_vals, x_max)
-        grid_max = float(g.max()) if g.size else 0.0
-        S = -float(res.fun)
-        last = LPResult(f_full, S, grid_max, grid_max <= rhs + feas_tol, "optimal", len(X), it)
-
-        viol = _violations(g, rhs + feas_tol)
-        if viol.size == 0:
-            return last
-        X = sorted(set(X) | set(int(x) for x in viol[:cuts_per_iter]))
-
-    # Exhausted iterations: return the last solve, flagged as not grid-feasible.
-    assert last is not None
-    return LPResult(last.f, last.S, last.grid_max, False, "max_iters", last.n_rows, max_iters)
+    impl = _cutting_plane_highs if solver == "highs" else _cutting_plane_scipy
+    return impl(kplus, kplus_arr, c, M, x_max, rhs, max_iters, cuts_per_iter, seed_rows, feas_tol)
