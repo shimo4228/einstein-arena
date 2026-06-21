@@ -204,51 +204,17 @@ def _cutting_plane_highs(
     seed_rows: int,
     feas_tol: float,
 ) -> LPResult:
-    """Warm-started cutting plane: one persistent HiGHS model, add only NEW rows each round.
+    """Warm-started cutting plane via the persistent `WarmLP` model (single source of the loop).
 
-    addRows + run() resumes from the retained optimal basis (dual simplex, presolve off), so
-    only the freshly added cuts are re-optimized -- far cheaper than scipy's cold re-solve.
+    `kplus_arr`/`c`/`M` stay in the signature only because `solve_support` dispatches this and
+    `_cutting_plane_scipy` through one call (the scipy sibling uses them); `WarmLP` recomputes them.
+    Numerically identical to the previously inlined loop (pinned by tests/test_pnt_warm.py).
     """
-    import highspy  # noqa: PLC0415 -- declared dep; lazy so the scipy path needs no HiGHS bindings
+    from arena.pnt_warm import WarmLP  # noqa: PLC0415 -- lazy: WarmLP imports from this module
 
-    n = len(kplus)
-    inf = highspy.kHighsInf
-    h = highspy.Highs()
-    h.setOptionValue("output_flag", False)
-    h.setOptionValue("presolve", "off")
-    empty_i = np.empty(0, dtype=np.int32)
-    empty_v = np.empty(0, dtype=np.float64)
-    for j in range(n):  # one column per f(k>=2): cost log(k)/k, box [-10, 10]
-        h.addCol(float(c[j]), -VALUE_BOUND, VALUE_BOUND, 0, empty_i, empty_v)
-
-    def add_rows(xs: np.ndarray) -> None:
-        a = _constraint_rows(xs, kplus_arr)
-        m = a.shape[0]
-        starts = np.arange(m, dtype=np.int32) * n
-        indices = np.tile(np.arange(n, dtype=np.int32), m)
-        h.addRows(m, np.full(m, -inf), np.full(m, rhs), m * n, starts, indices, a.ravel())
-
-    added: set[int] = set()
-    seed = sorted(range(1, min(M, seed_rows) + 1))
-    add_rows(np.asarray(seed, dtype=np.int64))
-    added.update(seed)
-    last: LPResult | None = None
-    for it in range(1, max_iters + 1):
-        h.run()
-        if h.getModelStatus() != highspy.HighsModelStatus.kOptimal:
-            return LPResult(
-                {1: 0.0}, 0.0, math.inf, False, f"highs: {h.getModelStatus()}", len(added), it
-            )
-        x = np.asarray(h.getSolution().col_value, dtype=np.float64)
-        last, g = _result_from_x(x, kplus, c, x_max, rhs, feas_tol, len(added), it)
-        viol = _violations(g, rhs + feas_tol)
-        new_x = [int(v) for v in viol if int(v) not in added][:cuts_per_iter]
-        if not new_x:
-            return last
-        add_rows(np.asarray(sorted(new_x), dtype=np.int64))
-        added.update(new_x)
-    assert last is not None
-    return LPResult(last.f, last.S, last.grid_max, False, "max_iters", last.n_rows, max_iters)
+    return WarmLP(kplus, rhs=rhs, feas_tol=feas_tol).row_generate_to_feasible(
+        x_max, max_iters=max_iters, cuts_per_iter=cuts_per_iter, seed_rows=seed_rows
+    )
 
 
 def solve_support(

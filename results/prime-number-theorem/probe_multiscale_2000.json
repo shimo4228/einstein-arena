@@ -1,0 +1,10 @@
+{
+  "support": "multiscale-2000-r4500",
+  "keys": 2000,
+  "reach": 4501,
+  "S": 0.9955806006360863,
+  "feasible": true,
+  "status": "optimal",
+  "seconds": 3059.7182960510254,
+  "vs_arena_top": 0.0006796006360862972
+}

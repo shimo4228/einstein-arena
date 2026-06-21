@@ -12,14 +12,20 @@ human approval. To enforce this in code:
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
+import stat
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import requests
 
 BASE_URL = "https://einsteinarena.com"
+CREDENTIALS_PATH = Path.home() / ".config" / "einsteinarena" / "credentials.json"
+_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")  # server rule: 2-30 chars, alnum + dash + underscore
 
 
 class ApprovalRequired(RuntimeError):
@@ -34,6 +40,25 @@ class SubmissionPlan:
     problem_id: int
     solution: dict
     note: str = "DRY RUN — not sent. Re-run with approved=True after human approval."
+
+
+@dataclass(frozen=True)
+class RegistrationPlan:
+    """What a registration WOULD do (dry-run result). Registration mints a PERMANENT public identity."""
+
+    endpoint: str
+    name: str
+    difficulty: int = 25
+    note: str = (
+        "DRY RUN — not sent. Registration creates a PERMANENT, public agent identity and api_key. "
+        "Re-run with approved=True only after explicit human approval (CLAUDE.md)."
+    )
+
+
+def validate_agent_name(name: str) -> None:
+    """Enforce the server's name rule locally (fail fast before any network call)."""
+    if not (2 <= len(name) <= 30) or not _NAME_RE.match(name):
+        raise ValueError("agent name must be 2-30 chars, [A-Za-z0-9_-] only")
 
 
 class ArenaClient:
@@ -82,9 +107,9 @@ class ArenaClient:
         plan = SubmissionPlan(endpoint="/api/solutions", problem_id=problem_id, solution=solution)
         if dry_run or not approved:
             return plan
-        api_key = os.environ.get("EINSTEIN_ARENA_API_KEY")
+        api_key = load_api_key()
         if not api_key:
-            raise ApprovalRequired("EINSTEIN_ARENA_API_KEY not set; cannot submit.")
+            raise ApprovalRequired("no API key (env or credentials.json); register first.")
         resp = requests.post(
             f"{self.base_url}/api/solutions",
             json={"problem_id": problem_id, "solution": solution},
@@ -94,6 +119,69 @@ class ArenaClient:
         )
         resp.raise_for_status()
         return resp.json()
+
+    def request_challenge(self, name: str) -> dict:
+        """POST /api/agents/challenge -> {challenge, difficulty}. Fired only inside approved register()."""
+        resp = requests.post(
+            f"{self.base_url}/api/agents/challenge",
+            json={"name": name},
+            timeout=self.timeout,
+            allow_redirects=False,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def register(
+        self,
+        name: str,
+        *,
+        dry_run: bool = True,
+        approved: bool = False,
+        save: bool = True,
+    ) -> RegistrationPlan | dict:
+        """Mint a PERMANENT public agent identity (challenge -> PoW -> register). OUTWARD-FACING.
+
+        Default is a DRY RUN that returns a RegistrationPlan without contacting the server. A live
+        call requires dry_run=False AND approved=True. On success the api_key is shown ONCE, so it
+        is saved to CREDENTIALS_PATH (mode 0600) immediately unless save=False.
+        """
+        validate_agent_name(name)
+        if dry_run or not approved:
+            return RegistrationPlan(endpoint="/api/agents/register", name=name)
+        ch = self.request_challenge(name)
+        nonce = int(solve_pow(ch["challenge"], int(ch["difficulty"])))
+        resp = requests.post(
+            f"{self.base_url}/api/agents/register",
+            json={"name": name, "challenge": ch["challenge"], "nonce": nonce},
+            timeout=self.timeout,
+            allow_redirects=False,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        api_key = data.get("agent", {}).get("api_key")
+        if save and api_key:
+            save_credentials(name, api_key)
+        return data
+
+
+def load_api_key() -> str | None:
+    """API key from EINSTEIN_ARENA_API_KEY, else CREDENTIALS_PATH. None if unregistered."""
+    env = os.environ.get("EINSTEIN_ARENA_API_KEY")
+    if env:
+        return env
+    if CREDENTIALS_PATH.exists():
+        try:
+            return json.loads(CREDENTIALS_PATH.read_text()).get("api_key")
+        except (json.JSONDecodeError, OSError):
+            return None
+    return None
+
+
+def save_credentials(name: str, api_key: str) -> None:
+    """Persist the one-time api_key to CREDENTIALS_PATH with 0600 perms (never to the repo)."""
+    CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CREDENTIALS_PATH.write_text(json.dumps({"agent_name": name, "api_key": api_key}, indent=2))
+    CREDENTIALS_PATH.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
 
 def solve_pow(challenge: str, difficulty: int, *, max_iters: int = 1 << 28) -> str:

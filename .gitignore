@@ -29,6 +29,8 @@ results/**/*.blob
 
 # large downloaded/regenerable third-party solution dumps (n=100000); re-fetch via the API
 results/third-autocorrelation-inequality/*.json
+# competitor solution dump for originality comparison (~700KB); re-fetch via scripts/fetch_pnt_arena_compare.py
+results/prime-number-theorem/arena_compare.json
 
 # === OS ===
 .DS_Store
