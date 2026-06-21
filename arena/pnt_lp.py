@@ -30,6 +30,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from scipy.optimize import linprog
@@ -258,7 +259,7 @@ def solve_support(
     cuts_per_iter: int = 1_000_000,
     seed_rows: int = 1_000_000,
     feas_tol: float = 1e-9,
-    solver: str = "highs",
+    solver: Literal["highs", "scipy"] = "highs",
 ) -> LPResult:
     """Maximize S on a fixed support via cutting-plane LP, honest bound `rhs`.
 
@@ -271,6 +272,10 @@ def solve_support(
     each round); solver="scipy" cold-resolves via scipy.optimize.linprog (reference/fallback).
     Both delegate to HiGHS, so the optimum is identical; "highs" is markedly faster at large |K|.
     """
+    if solver not in ("highs", "scipy"):
+        raise ValueError(f"unknown solver {solver!r}; use 'highs' or 'scipy'")
+    if max_iters < 1:
+        raise ValueError("max_iters must be >= 1")
     keys = normalize_support(K)
     kplus = [k for k in keys if k != 1]
     if not kplus:

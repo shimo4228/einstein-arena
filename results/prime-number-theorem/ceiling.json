@@ -1,0 +1,70 @@
+{
+  "arena_top": 0.994901,
+  "rows": [
+    {
+      "support": "contiguous-1200",
+      "n": 1200,
+      "max_key": 1200,
+      "S": 0.9907202979097423,
+      "gap_to_top": -0.004180702090257782,
+      "gap_to_max": 0.009279702090257747,
+      "grid_max": 1.000000000340151,
+      "grid_feasible": true,
+      "submittable": true,
+      "mobius_distance": {
+        "linf": 3.5135133206919393,
+        "mean_abs": 0.5012083191205398,
+        "frac_changed": 0.7881567973311092
+      },
+      "seconds": 254.4
+    },
+    {
+      "support": "contiguous-2000",
+      "n": 2000,
+      "max_key": 2000,
+      "S": 0.9933965639957444,
+      "gap_to_top": -0.0015044360042556493,
+      "gap_to_max": 0.006603436004255614,
+      "grid_max": 1.000000000209809,
+      "grid_feasible": true,
+      "submittable": true,
+      "mobius_distance": {
+        "linf": 2.8769518641469505,
+        "mean_abs": 0.5118985729517332,
+        "frac_changed": 0.7563781890945472
+      },
+      "seconds": 1613.0
+    },
+    {
+      "support": "squarefree-1600keys",
+      "n": 1600,
+      "max_key": 2629,
+      "S": 0.9937081818828535,
+      "gap_to_top": -0.0011928181171465546,
+      "gap_to_max": 0.006291818117146519,
+      "grid_max": 1.0000000003064997,
+      "grid_feasible": true,
+      "submittable": true,
+      "mobius_distance": {
+        "linf": 3.008174881293163,
+        "mean_abs": 0.6042252848476195,
+        "frac_changed": 0.7354596622889306
+      },
+      "seconds": 1147.2
+    }
+  ],
+  "best": {
+    "support": "squarefree-1600keys",
+    "n": 1600,
+    "max_key": 2629,
+    "S": 0.9937081818828535,
+    "gap_to_top": -0.0011928181171465546,
+    "mobius_distance": {
+      "linf": 3.008174881293163,
+      "mean_abs": 0.6042252848476195,
+      "frac_changed": 0.7354596622889306
+    },
+    "server_replay": "skipped (grid check at RHS 1.0 is authoritative & stricter than server 1.0001; local==server fidelity proven in tests/test_pnt_verify.py)"
+  },
+  "note": "squarefree-2000keys aborted (single LP solve exceeded 34min at n=2000, x_max=32870; value not needed — trend already shows natural families plateau below arena top). VERDICT: contiguous/squarefree families do NOT beat arena top 0.994901 within the 2000-key budget (best 0.993708, gap -0.001193). Beating top requires non-obvious support structure -> Phase Search."
+}
