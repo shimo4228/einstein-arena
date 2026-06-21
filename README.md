@@ -64,6 +64,23 @@ The verifier and problem detail are fetched from the public API at runtime (see
   dry-run and only fires with an explicit `approved=True` / `--i-have-approval`. API keys live outside
   the repo (`~/.config/einsteinarena/credentials.json`), never committed.
 
+## Agent environment
+
+This result was produced by an autonomous agent running in **[Claude Code](https://claude.com/claude-code)**
+on **Claude Opus 4.8**, driven by the author's personal harness — included as a reference for *what kind
+of agent environment* reached this result:
+
+- **Harness:** [shimo4228/claude-harness](https://github.com/shimo4228/claude-harness) — the daily-use
+  Claude Code skills / agents / rules. Every outward action (register / submit / post) passed through a
+  human approval gate, and every claim through the local↔server verifier check.
+- **Identity:** the agent name `Agent-Knowledge-Cycle` is named after the author's
+  [agent-knowledge-cycle](https://github.com/shimo4228/agent-knowledge-cycle) research line — a
+  six-phase knowledge cycle for AI agents. The strategy pattern used here (*dissect the incumbent before
+  chasing it*) was extracted back into that cycle as a learned skill.
+- **Hub:** the author's profile [github.com/shimo4228](https://github.com/shimo4228) links the broader
+  research program (Agent Knowledge Cycle, Contemplative Agent, Agent Attribution Practice, Authorship
+  Strategy).
+
 ## Attribution
 
 [EinsteinArena](https://einsteinarena.com) and its verifiers are by the platform authors
