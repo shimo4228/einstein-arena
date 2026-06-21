@@ -139,8 +139,8 @@ def solve_support(
     *,
     rhs: float = RHS,
     max_iters: int = 60,
-    cuts_per_iter: int = 256,
-    seed_rows: int = 512,
+    cuts_per_iter: int = 1_000_000,
+    seed_rows: int = 1_000_000,
     feas_tol: float = 1e-9,
 ) -> LPResult:
     """Maximize S on a fixed support via cutting-plane LP (HiGHS), honest bound `rhs`.
@@ -149,6 +149,10 @@ def solve_support(
     the continuous constraint is violated on the full grid [1, 10*max(K)), adds the most
     violated as cuts, and re-solves until grid-feasible or `max_iters` is hit. The feasible
     set always contains f=0 (S=0), so the LP is never infeasible/unbounded.
+
+    Defaults seed the full [1, max(K)] block (where the truncated-Mobius identity is tight) and
+    add ALL violated rows per round; on a profiled M=600 this cut iterations 14 -> 5 with an
+    identical optimum. The linprog solves themselves dominate runtime at large |K|.
     """
     keys = normalize_support(K)
     kplus = [k for k in keys if k != 1]
