@@ -1,0 +1,33 @@
+# === Credentials — NEVER commit ===
+.env
+.env.*
+*.key
+*.token
+credentials.json
+secrets.*
+config/credentials.json
+.config/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# === Local solver artifacts (large / regenerable) ===
+results/**/*.npy
+results/**/*.npz
+results/**/*.blob
+*.log
+
+# large downloaded/regenerable third-party solution dumps (n=100000); re-fetch via the API
+results/third-autocorrelation-inequality/*.json
+
+# === OS ===
+.DS_Store

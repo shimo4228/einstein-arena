@@ -1,0 +1,34 @@
+[project]
+name = "einstein-arena"
+version = "0.0.1"
+description = "Local search experiments for EinsteinArena construction problems (read-only recon + local verification; submission gated on human approval)"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "requests>=2.32",
+    "cma>=4.4.4",
+    "jax>=0.10.2",
+]
+
+# 追加の最適化ソルバ（cma / nlopt 等）は Phase 0 (/search-first) で
+# 狙う問題向けに選定してから追加する。ここで先回りして入れない。
+
+[tool.ruff]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = [
+    "unit: unit tests",
+    "integration: tests that hit the local verifier",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
