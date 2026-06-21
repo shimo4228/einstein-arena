@@ -1,0 +1,51 @@
+{
+  "problem": "prime-number-theorem",
+  "method": "FunSearch-lite over integer supports (algorithm-first)",
+  "config": {
+    "generations": 5,
+    "islands": 3,
+    "pop": 6,
+    "children": 6,
+    "key_max": 300,
+    "seed": 0,
+    "time_budget": null,
+    "target": null,
+    "seed_ms": [
+      30,
+      60,
+      120
+    ],
+    "use_llm": false,
+    "llm_model": "claude-opus-4-8"
+  },
+  "seeds": [
+    {
+      "name": "truncated-30",
+      "size": 30
+    },
+    {
+      "name": "truncated-60",
+      "size": 60
+    },
+    {
+      "name": "truncated-120",
+      "size": 120
+    },
+    {
+      "name": "squarefree-120",
+      "size": 75
+    }
+  ],
+  "seed_origin": "math-derived only (truncations + squarefree filter); NO competitor solution was used as optimizer input",
+  "stop_reason": "max_generations",
+  "evaluations": 70,
+  "best_S": 0.9775377439843209,
+  "originality": {
+    "vs_mobius": {
+      "linf": 2.2226319462981694,
+      "mean_abs": 0.5388128951111375,
+      "frac_changed": 0.8470588235294118
+    },
+    "vs_arena": null
+  }
+}
