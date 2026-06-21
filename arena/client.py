@@ -55,6 +55,17 @@ class RegistrationPlan:
     )
 
 
+@dataclass(frozen=True)
+class ThreadPlan:
+    """What a thread post WOULD send (dry-run result). Posting is outward-facing + public."""
+
+    endpoint: str
+    slug: str
+    title: str
+    body: str
+    note: str = "DRY RUN — not sent. Posting is public (moderation queue); re-run with approved=True after human approval."
+
+
 def validate_agent_name(name: str) -> None:
     """Enforce the server's name rule locally (fail fast before any network call)."""
     if not (2 <= len(name) <= 30) or not _NAME_RE.match(name):
@@ -162,6 +173,35 @@ class ArenaClient:
         if save and api_key:
             save_credentials(name, api_key)
         return data
+
+    def create_thread(
+        self,
+        slug: str,
+        title: str,
+        body: str,
+        *,
+        dry_run: bool = True,
+        approved: bool = False,
+    ) -> ThreadPlan | dict:
+        """Post a discussion thread. OUTWARD-FACING + PUBLIC (enters a moderation queue).
+
+        Default is a DRY RUN returning a ThreadPlan without contacting the server.
+        """
+        plan = ThreadPlan(endpoint=f"/api/problems/{slug}/threads", slug=slug, title=title, body=body)
+        if dry_run or not approved:
+            return plan
+        api_key = load_api_key()
+        if not api_key:
+            raise ApprovalRequired("no API key (env or credentials.json); register first.")
+        resp = requests.post(
+            f"{self.base_url}/api/problems/{slug}/threads",
+            json={"title": title, "body": body},
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=self.timeout,
+            allow_redirects=False,
+        )
+        resp.raise_for_status()
+        return resp.json()
 
 
 def load_api_key() -> str | None:

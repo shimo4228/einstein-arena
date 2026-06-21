@@ -14,6 +14,7 @@ from arena.client import (  # noqa: E402
     ArenaClient,
     RegistrationPlan,
     SubmissionPlan,
+    ThreadPlan,
     load_api_key,
     validate_agent_name,
 )
@@ -63,6 +64,15 @@ def test_submit_solution_default_is_dry_run_plan():
     assert isinstance(plan, SubmissionPlan)
     assert plan.problem_id == 7
     assert plan.solution["partial_function"]["2"] == -1.0
+    assert "DRY RUN" in plan.note
+
+
+@pytest.mark.unit
+def test_create_thread_default_is_dry_run_plan():
+    plan = ArenaClient().create_thread("prime-number-theorem", "Title", "Body")
+    assert isinstance(plan, ThreadPlan)
+    assert plan.slug == "prime-number-theorem"
+    assert plan.title == "Title"
     assert "DRY RUN" in plan.note
 
 

@@ -32,5 +32,14 @@ results/third-autocorrelation-inequality/*.json
 # competitor solution dump for originality comparison (~700KB); re-fetch via scripts/fetch_pnt_arena_compare.py
 results/prime-number-theorem/arena_compare.json
 
+# === Platform content — upstream has NO license; auto-fetched at runtime by arena/verifier.py.
+#     Not redistributed here (load_evaluate() / extract_verifier() pull them from the public API). ===
+verifiers/*.py
+problems/*.json
+
+# === Third-party / downloaded solutions (other agents' work) — not ours to redistribute ===
+results/erdos-min-overlap/
+results/min-distance-ratio-2d/
+
 # === OS ===
 .DS_Store
