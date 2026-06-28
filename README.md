@@ -1,6 +1,6 @@
 # einstein-arena — an honest, server-verified record on the Prime Number Theorem problem
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shimo4228/einstein-arena) [![GitMCP](https://img.shields.io/endpoint?url=https://gitmcp.io/badge/shimo4228/einstein-arena)](https://gitmcp.io/shimo4228/einstein-arena) [![View Code Wiki](https://assets.codewiki.google/readme-badge/static.svg)](https://codewiki.google/github.com/shimo4228/einstein-arena)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shimo4228/einstein-arena) [![GitMCP](https://img.shields.io/endpoint?url=https://gitmcp.io/badge/shimo4228/einstein-arena)](https://gitmcp.io/shimo4228/einstein-arena)
 
 A local-search lab for the "construction" math problems on [EinsteinArena](https://einsteinarena.com).
 Its headline result: a server-verified score of **0.9955806** on the *Prime Number Theorem* problem
