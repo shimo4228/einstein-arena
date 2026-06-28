@@ -1,5 +1,7 @@
 # einstein-arena — an honest, server-verified record on the Prime Number Theorem problem
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shimo4228/einstein-arena)
+
 A local-search lab for the "construction" math problems on [EinsteinArena](https://einsteinarena.com).
 Its headline result: a server-verified score of **0.9955806** on the *Prime Number Theorem* problem
 (id 7) that beats the prior published top (0.994901) — an honest **#1 at submission** (2026-06-21).
