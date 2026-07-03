@@ -64,6 +64,44 @@ def test_multiscale_reach_exceeds_squarefree_first_at_equal_budget():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "target_reach", [16000, 48000, 64000], ids=["r16k", "r48k", "r64k"]
+)
+def test_multiscale_large_reach_hits_target(target_reach: int):
+    """Campaign-scale supports: full 2000-key budget must actually deliver the target reach
+    (the tail loop breaks early if the sieve margin undershoots — pin the behavior)."""
+    K = multiscale_support(2000, dense_upto=2300, target_reach=target_reach)
+    assert K == sorted(set(K))
+    assert len(K) <= 2000
+    assert all(_is_squarefree(k) for k in K)
+    assert max(K) >= 0.95 * target_reach
+    # budget is actually spent: a large-reach multiscale should use (nearly) all keys
+    assert len(K) >= 1990
+
+
+@pytest.mark.unit
+def test_multiscale_dense_saturation_returns_prefix():
+    """If the dense prefix alone exhausts the cap, the truncated prefix is returned as-is."""
+    K = multiscale_support(50, dense_upto=1000, target_reach=5000)
+    assert len(K) == 50
+    assert all(_is_squarefree(k) for k in K)
+    assert K == [k for k in squarefree_first_n(200) if k <= 1000][:50]
+
+
+@pytest.mark.unit
+def test_multiscale_tail_ratio_is_roughly_geometric():
+    """Median adjacent-tail ratio should track (target/dense_upto)**(1/n_tail) within ~20%."""
+    cap, dense_upto, target = 2000, 2300, 48000
+    K = multiscale_support(cap, dense_upto=dense_upto, target_reach=target)
+    tail = [k for k in K if k > dense_upto]
+    assert len(tail) > 100
+    ratios = sorted(b / a for a, b in zip(tail, tail[1:]))
+    median = ratios[len(ratios) // 2]
+    expected = (target / dense_upto) ** (1.0 / len(tail))
+    assert abs(median - expected) / (expected - 1.0) < 0.2
+
+
+@pytest.mark.unit
 def test_candidate_pool_squarefree_only_vs_with_nonsquarefree():
     sf_only = candidate_pool(100, include_nonsquarefree=False)
     withns = candidate_pool(100, include_nonsquarefree=True)

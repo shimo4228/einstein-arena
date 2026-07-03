@@ -81,7 +81,9 @@ def normalize_support(K: Iterable[int]) -> list[int]:
         raise ValueError("support keys must be >= 1")
     out = sorted(ks)
     if len(out) > MAX_SUPPORT:
-        raise ValueError(f"support has {len(out)} keys, exceeds MAX_SUPPORT={MAX_SUPPORT}")
+        raise ValueError(
+            f"support has {len(out)} keys, exceeds MAX_SUPPORT={MAX_SUPPORT}"
+        )
     return out
 
 
@@ -126,6 +128,24 @@ def grid_g(keys: np.ndarray, values: np.ndarray, x_max: int) -> np.ndarray:
     return out
 
 
+def grid_g_fast(keys: np.ndarray, values: np.ndarray, x_max: int) -> np.ndarray:
+    """Same g as `grid_g` but via divisor increments + cumsum: O(x_max * sum 1/k) vs O(x_max * |K|).
+
+    g(x) - g(x-1) = sum_{k | x} f(k), so a difference array bumped at every multiple of each key,
+    cumsum'd, reproduces g. ~1000x faster than the dense matmul at competition sizes, BUT the
+    cumsum accumulates rounding (worst case ~1e-9 at x_max ~ 5e5), so callers may use it only to
+    FIND cut candidates; convergence/feasibility must be certified with the exact `grid_g`.
+    """
+    keys = np.asarray(keys, dtype=np.int64)
+    values = np.asarray(values, dtype=np.float64)
+    n = max(0, x_max - 1)
+    d = np.zeros(n, dtype=np.float64)
+    for k, v in zip(keys.tolist(), values.tolist()):
+        if k <= n:
+            d[k - 1 :: k] += v
+    return np.cumsum(d)
+
+
 def _violations(g: np.ndarray, rhs: float) -> np.ndarray:
     """Integer x (1-based) where g(x) > rhs, sorted by descending violation."""
     mask = g > rhs
@@ -157,7 +177,9 @@ def _result_from_x(
     g = grid_g(full_keys, full_vals, x_max)
     grid_max = float(g.max()) if g.size else 0.0
     S = -float(np.dot(c, xvec))
-    res = LPResult(f_full, S, grid_max, grid_max <= rhs + feas_tol, "optimal", n_rows, it)
+    res = LPResult(
+        f_full, S, grid_max, grid_max <= rhs + feas_tol, "optimal", n_rows, it
+    )
     return res, g
 
 
@@ -180,16 +202,22 @@ def _cutting_plane_scipy(
     for it in range(1, max_iters + 1):
         xs = np.asarray(X, dtype=np.int64)
         a_ub = _constraint_rows(xs, kplus_arr)
-        sol = linprog(c, A_ub=a_ub, b_ub=np.full(len(X), rhs), bounds=bounds, method="highs")
+        sol = linprog(
+            c, A_ub=a_ub, b_ub=np.full(len(X), rhs), bounds=bounds, method="highs"
+        )
         if not sol.success:
-            return LPResult({1: 0.0}, 0.0, math.inf, False, f"linprog: {sol.message}", len(X), it)
+            return LPResult(
+                {1: 0.0}, 0.0, math.inf, False, f"linprog: {sol.message}", len(X), it
+            )
         last, g = _result_from_x(sol.x, kplus, c, x_max, rhs, feas_tol, len(X), it)
         viol = _violations(g, rhs + feas_tol)
         if viol.size == 0:
             return last
         X = sorted(set(X) | {int(x) for x in viol[:cuts_per_iter]})
     assert last is not None
-    return LPResult(last.f, last.S, last.grid_max, False, "max_iters", last.n_rows, max_iters)
+    return LPResult(
+        last.f, last.S, last.grid_max, False, "max_iters", last.n_rows, max_iters
+    )
 
 
 def _cutting_plane_highs(
@@ -210,7 +238,9 @@ def _cutting_plane_highs(
     `_cutting_plane_scipy` through one call (the scipy sibling uses them); `WarmLP` recomputes them.
     Numerically identical to the previously inlined loop (pinned by tests/test_pnt_warm.py).
     """
-    from arena.pnt_warm import WarmLP  # noqa: PLC0415 -- lazy: WarmLP imports from this module
+    from arena.pnt_warm import (
+        WarmLP,
+    )  # noqa: PLC0415 -- lazy: WarmLP imports from this module
 
     return WarmLP(kplus, rhs=rhs, feas_tol=feas_tol).row_generate_to_feasible(
         x_max, max_iters=max_iters, cuts_per_iter=cuts_per_iter, seed_rows=seed_rows
@@ -252,4 +282,15 @@ def solve_support(
     kplus_arr = np.asarray(kplus, dtype=np.int64)
     c = objective_vector(kplus)
     impl = _cutting_plane_highs if solver == "highs" else _cutting_plane_scipy
-    return impl(kplus, kplus_arr, c, M, x_max, rhs, max_iters, cuts_per_iter, seed_rows, feas_tol)
+    return impl(
+        kplus,
+        kplus_arr,
+        c,
+        M,
+        x_max,
+        rhs,
+        max_iters,
+        cuts_per_iter,
+        seed_rows,
+        feas_tol,
+    )

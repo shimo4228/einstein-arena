@@ -12,7 +12,14 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from arena.pnt_lp import RHS, objective_vector, reconstruct_f1, solve_support  # noqa: E402
+from arena.pnt_lp import (  # noqa: E402
+    RHS,
+    grid_g,
+    grid_g_fast,
+    objective_vector,
+    reconstruct_f1,
+    solve_support,
+)
 
 
 @pytest.mark.unit
@@ -70,6 +77,39 @@ def test_support_always_includes_key_one():
     res = solve_support([2, 3, 5])
     assert 1 in res.f
     assert set(res.f.keys()) == {1, 2, 3, 5}
+
+
+@pytest.mark.unit
+def test_grid_g_fast_matches_grid_g():
+    """The divisor-sum + cumsum scan reproduces the exact dense scan (well under LP tolerances)."""
+    rng = np.random.default_rng(42)
+    for _ in range(5):
+        keys = np.unique(rng.integers(1, 400, size=60).astype(np.int64))
+        if keys[0] != 1:
+            keys = np.concatenate(([1], keys))
+        vals = rng.uniform(-10, 10, size=len(keys))
+        x_max = int(10 * keys.max())
+        fast = grid_g_fast(keys, vals, x_max)
+        exact = grid_g(keys, vals, x_max)
+        assert fast.shape == exact.shape
+        # Unconstrained random f lets |g| grow to ~1e4, so cumsum rounding scales with the
+        # running-sum magnitude -> compare with a relative term. In the LP's regime (g <= ~1)
+        # the absolute error is ~1e-12; the design never certifies with the fast scan anyway.
+        assert np.allclose(fast, exact, rtol=1e-12, atol=1e-9)
+        # Realistic magnitude: scale values so g stays O(1); absolute agreement is then tight.
+        fast_s = grid_g_fast(keys, vals / 1000.0, x_max)
+        exact_s = grid_g(keys, vals / 1000.0, x_max)
+        assert float(np.max(np.abs(fast_s - exact_s))) < 1e-10
+
+
+@pytest.mark.unit
+def test_grid_g_fast_ignores_keys_beyond_domain():
+    """Keys with k >= x_max contribute floor(x/k)=0 everywhere; both scans agree."""
+    keys = np.asarray([1, 2, 3, 500], dtype=np.int64)
+    vals = np.asarray([0.5, -1.0, 0.25, 3.0], dtype=np.float64)
+    fast = grid_g_fast(keys, vals, 20)
+    exact = grid_g(keys, vals, 20)
+    assert np.allclose(fast, exact, atol=1e-12)
 
 
 @pytest.mark.unit

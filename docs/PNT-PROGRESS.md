@@ -68,3 +68,54 @@
 ## 安全プロトコル（厳守）
 
 GET は自由。**submit / register / thread は要承認**。スクリプトは dry-run 既定（`scripts/submit_pnt_record.py` は `--i-have-approval` でのみ発火）。API キーはリポジトリに置かない。**今回の登録・提出は人間の明示承認 "go" を得てから発火した。** thread はまだ発火していない。
+
+## 🏆 奪還キャンペーン → #1 再達成（2026-07-03/04、承認 "go" 済み提出 id 2383）
+
+**背景**: 前回 #1（0.9955806）が #4 に後退。解剖（read-only GET）の結果 — CHRONOS 0.9965177307
+（連続整数 2..1501 + 幾何 tail、reach 24000、緩み 1.0001 使用。honest 2位解 0.9962211@16k も保有）、
+MAOJIASONG 0.9963197（squarefree 系 1675 キー、reach 16000、緩み使用）、Hyra 0.9956802
+（**我々の解の丸コピー ×1.0001**、jaccard=1.000、linf vs ours×1.0001 = 2.7e-9）。
+同 reach では構造細部の差がほぼ消える（広いプラトー）→ **支配レバーは reach** のまま。
+
+**deficit 則**: 実測から 1−S ≈ c/ln(10·reach)。incumbent 解では c≈0.0444–0.0474 だが、
+我々の multiscale では **c = 0.0392 (16k) → 0.0370 (24k) → 0.0362 (32k) と単調低下**
+（= multiscale の構造優位は reach とともに拡大する）。
+
+**エンジン改修**（このキャンペーンで実装、全テスト 115 本緑）:
+- `grid_g_fast`（約数増分 + cumsum、O(x_max·Σ1/k)）— cut 候補探索専用。**収束 certify は必ず exact `grid_g`**（fast の丸めは最終結果に混入しない設計）
+- cut-drop（`drop_slack_rows`: slack>tol・min_age 経過・非 pin 行を削除。再入 x は pin → 有限終了保証）+ `LedgerDriftError`（帳簿乖離の型付き例外）
+- **層化 cut 選択**（`cut_window`: x 軸窓ごと worst-1 本）— 同 S で行数 3668→1035、wall 半減
+- **大差分遷移は warm 編集しない**: セル間で 2000 列中 25–40% が入れ替わり、HiGHS の basis が壊れて "warm" 初回 solve が病的化（12 分超スタック実測）→ >15% swap で fresh モデル再構築 + **cut 行だけ移植**
+- `near_binding_rows`: ledger の解 f から g(x)>1−ε の x を復元 → プロセス再起動を跨ぐ cut 知識の移送
+- `scripts/pnt_reach_sweep.py`: JSONL 追記 + fsync のレジューム型スイープドライバ（success is True のみスキップ）
+- 実験で棄却: IPM per-solve（warm 不可で 6.6 倍遅い）、HiGHS parallel オプション（即時 fail）
+
+**reach ラダー実測（D\*=1800、honest RHS=1.0、全セル exact grid 検証済み）**:
+
+| reach | honest S | coeff_c | 対 CHRONOS 0.9965177 |
+|---|---|---|---|
+| 16000 | 0.9967279 | 0.0392 | +0.00021 |
+| 24000 | 0.9970172 | 0.0370 | +0.00050 |
+| 32000 | **0.9971452** | 0.0362 | **+0.00063** |
+
+D 選定: D=2300@16k は LP 上界（iter9 で 0.9967122 < D=1800 の確定値 0.9967279）で敗退確定 →
+完走不要で D\*=1800。D 依存はごく小さく（≥1.6e-5）、reach が支配的。
+
+**提出**: record v2（`multiscale_record_v2.json`、dual_verify: server 原典再採点一致 + 整数グリッド
+[1,320010) 全数 g≤1.0、n_violations=0）→ dry-run → 人間承認 "go" → **id 2383: evaluated,
+score 0.9971452043881762（ローカル検証値と一致）→ leaderboard #1**（1 回で通過、queue ~10 分）。
+originality: support_jaccard 0.31 (CHRONOS) / 0.35 (MAOJIASONG) / 0.47 (Hyra)。
+
+**レビュー**（並列 3 本、全指摘修正済み）: python-reviewer HIGH=budget-hours の時刻比較フレーク
+（time.monotonic + <=0 特別扱いで修正）、security-reviewer MEDIUM=NaN/Infinity スコアによる
+ゲート無力化（`math.isfinite` フィルタ 3 箇所 + check_gate 防御）、codex-review（cross-model）が
+NaN を独立検出 + record 不在時 UX / resume 厳格化。LP 5 不変条件（exact certify / 帳簿 /
+三重ゲート / resume / RHS=1.0 非漏洩）は python-reviewer が個別検証で健全確認。
+
+**open work**:
+1. **48k セル**（S≈0.99723+ 見込み、coeff_c 低下継続ならさらに上）— マシン低負荷時間帯に
+   detached（nohup/setsid + caffeinate）で実行 → 上振れしたら**再承認を取って**再提出。
+   セッション紐付きバックグラウンドは外部停止が 3 回発生したため detached 推奨。
+2. cap=1900 保険セル（サーバ 120s タイムアウト対策。今回は 1 発通過したので低優先）。
+3. thread 更新（reach スケーリング則 c の単調低下 = 構造優位の拡大、の共有）— **要承認**。
+4. fine-tune D±300 は縮小判断（D 依存 1.6e-5 ≪ margin 6.3e-4 のため費用対効果低）。
